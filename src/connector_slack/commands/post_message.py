@@ -1,9 +1,14 @@
 """Send message to a slack channel."""
-import json
+from typing import Any
 
-import requests
+import requests  # type: ignore
+from spiffworkflow_connector_command.command_interface import CommandErrorDict
+from spiffworkflow_connector_command.command_interface import CommandResultDictV2
+from spiffworkflow_connector_command.command_interface import ConnectorCommand
+from spiffworkflow_connector_command.command_interface import ConnectorProxyResponseDict
 
-class PostMessage:
+
+class PostMessage(ConnectorCommand):
     """Send a message to slack."""
 
     SLACK_URL = "https://slack.com/api/chat.postMessage"
@@ -20,23 +25,25 @@ class PostMessage:
         self.channel = channel
         self.message = message
 
-    def execute(self, config, task_data):
+    def execute(self, _config: Any, _task_data: Any) -> CommandResultDictV2:
 
         headers = {"Authorization": f"Bearer {self.token}",
                    "Content-type": "application/json"}
         body = {"channel": self.channel,
                 "text": self.message
                 }
+
+        command_response = {}
+        status = 0
+        error: CommandErrorDict | None = None
+
         try:
-            response = requests.post(self.SLACK_URL, headers=headers, json=body)
+            response = requests.post(self.SLACK_URL, headers=headers, json=body, timeout=3000)
             if 'application/json' in response.headers.get('Content-Type', ''):
                 response_json = response.json()
-                if response_json['ok'] == True:
-                    return {
-                        "response": response.json(),
-                        "status": response.status_code,
-                        "mimetype": "application/json",
-                    }
+                if response_json['ok'] is True:
+                    command_response = response.json()
+                    status = response.status_code
                 else:
                     message = ". ".join(response_json.get('response_metadata',{}).get("messages", []))
                     if not message:
@@ -44,21 +51,23 @@ class PostMessage:
                     status_code = response.status_code
                     if status_code == 200:
                         status_code = 400  # Don't return a 200 on a failure.
-                    return {
-                        "response": {"error": message},
-                        "status": status_code,
-                        "mimetype": "application/json",
-                    }
+                    status = status_code
+                    error = {"error_code": "SlackMessageFailed","message": message}
             else:
-                return {
-                    "response": {"error": "Unreadable (non JSON) response from Slack"},
-                    "status": response.status_code,
-                    "mimetype": "application/json",
-                }
-        except Exception as e:
-            return {
-                "response": f'{"error": {e}}',
-                "status": 500,
-                "mimetype": "application/json",
-            }
+                error = {"error_code": "SlackMessageFailed", "message": "Unreadable (non JSON) response from Slack"}
+                status = response.status_code
+        except Exception as exception:
+            error = {"error_code": exception.__class__.__name__, "message": str(exception)}
+            status = 500
 
+        return_response: ConnectorProxyResponseDict = {
+            "command_response": command_response,
+            "error": error,
+        }
+        result: CommandResultDictV2 = {
+            "response": return_response,
+            "status": status,
+            "mimetype": "application/json",
+        }
+
+        return result
