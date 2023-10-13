@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "connector_slack", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 requests = "^2.28.1"
 spiffworkflow-connector-command = {git = "https://github.com/sartography/spiffworkflow-connector-command.git", rev = "main"}
 
