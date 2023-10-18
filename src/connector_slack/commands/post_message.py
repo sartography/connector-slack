@@ -1,9 +1,10 @@
 """Send message to a slack channel."""
+import json
 from typing import Any
 
 import requests  # type: ignore
 from spiffworkflow_connector_command.command_interface import CommandErrorDict
-from spiffworkflow_connector_command.command_interface import CommandResultDictV2
+from spiffworkflow_connector_command.command_interface import CommandResponseDict
 from spiffworkflow_connector_command.command_interface import ConnectorCommand
 from spiffworkflow_connector_command.command_interface import ConnectorProxyResponseDict
 
@@ -25,7 +26,7 @@ class PostMessage(ConnectorCommand):
         self.channel = channel
         self.message = message
 
-    def execute(self, _config: Any, _task_data: Any) -> CommandResultDictV2:
+    def execute(self, _config: Any, _task_data: Any) -> ConnectorProxyResponseDict:
 
         headers = {"Authorization": f"Bearer {self.token}",
                    "Content-type": "application/json"}
@@ -60,14 +61,16 @@ class PostMessage(ConnectorCommand):
             error = {"error_code": exception.__class__.__name__, "message": str(exception)}
             status = 500
 
-        return_response: ConnectorProxyResponseDict = {
-            "command_response": command_response,
-            "error": error,
-        }
-        result: CommandResultDictV2 = {
-            "response": return_response,
-            "status": status,
+        return_response: CommandResponseDict = {
+            "body": json.dumps(command_response),
             "mimetype": "application/json",
+            "http_status": status,
+        }
+        result: ConnectorProxyResponseDict = {
+            "command_response": return_response,
+            "error": error,
+            "command_response_version": 2,
+
         }
 
         return result
